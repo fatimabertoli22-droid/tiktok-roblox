@@ -1,0 +1,13 @@
+{
+  "name": "tiktok-roblox-live",
+  "version": "1.0.0",
+  "description": "TikTok LIVE para Roblox",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "tiktok-live-connector": "^2.4.3"
+  }
+}

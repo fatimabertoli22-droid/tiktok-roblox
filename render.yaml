@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: tiktok-roblox
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
