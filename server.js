@@ -10,31 +10,30 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// ===============================
+// ========================================
 // CONFIGURAÇÕES
-// ===============================
+// ========================================
 
 const TIKTOK_USERNAME =
-    process.env.TIKTOK_USERNAME || "COLOQUE_SEU_TIKTOK_AQUI";
+    process.env.TIKTOK_USERNAME || "subarunatsuki2.3";
 
 const API_KEY =
-    process.env.API_KEY || "TROQUE_ESSA_CHAVE";
+    process.env.API_KEY || "RobloxTikTok_847291";
 
-// ===============================
+// ========================================
 // FILA
-// ===============================
+// ========================================
 
 let queue = [];
-
 let nextId = 1;
 
-// ===============================
-// FUNÇÃO PARA ADICIONAR USER
-// ===============================
+// ========================================
+// ADICIONAR JOGADOR
+// ========================================
 
 function addRobloxUser(robloxUsername, tiktokSender) {
 
-    robloxUsername = robloxUsername
+    robloxUsername = String(robloxUsername)
         .replace("@", "")
         .trim();
 
@@ -42,14 +41,14 @@ function addRobloxUser(robloxUsername, tiktokSender) {
         return;
     }
 
-    // Evita spam do mesmo jogador
     const alreadyExists = queue.some(
-        x =>
-            x.robloxUsername.toLowerCase() ===
+        player =>
+            player.robloxUsername.toLowerCase() ===
             robloxUsername.toLowerCase()
     );
 
     if (alreadyExists) {
+
         console.log(
             `Ignorado: ${robloxUsername} já está na fila`
         );
@@ -70,12 +69,13 @@ function addRobloxUser(robloxUsername, tiktokSender) {
     console.log("NOVO JOGADOR");
     console.log("Roblox:", robloxUsername);
     console.log("TikTok:", tiktokSender);
+    console.log("ID:", item.id);
     console.log("================================");
 }
 
-// ===============================
-// TESTE MANUAL
-// ===============================
+// ========================================
+// TESTE
+// ========================================
 
 app.get("/", (req, res) => {
 
@@ -88,16 +88,18 @@ app.get("/", (req, res) => {
 
 });
 
-// ===============================
+// ========================================
 // ROBLOX PEGA A FILA
-// ===============================
+// ========================================
 
 app.get("/api/queue", (req, res) => {
 
     if (req.query.key !== API_KEY) {
+
         return res.status(401).json({
             error: "API key inválida"
         });
+
     }
 
     res.json({
@@ -107,16 +109,18 @@ app.get("/api/queue", (req, res) => {
 
 });
 
-// ===============================
-// ROBLOX REMOVE ITEM DA FILA
-// ===============================
+// ========================================
+// ROBLOX REMOVE JOGADOR
+// ========================================
 
 app.post("/api/remove", (req, res) => {
 
     if (req.query.key !== API_KEY) {
+
         return res.status(401).json({
             error: "API key inválida"
         });
+
     }
 
     const id = Number(req.body.id);
@@ -142,16 +146,18 @@ app.post("/api/remove", (req, res) => {
 
 });
 
-// ===============================
+// ========================================
 // ADICIONAR MANUALMENTE
-// ===============================
+// ========================================
 
 app.post("/api/add", (req, res) => {
 
     if (req.query.key !== API_KEY) {
+
         return res.status(401).json({
             error: "API key inválida"
         });
+
     }
 
     const username = req.body.username;
@@ -165,7 +171,10 @@ app.post("/api/add", (req, res) => {
 
     }
 
-    addRobloxUser(username, sender);
+    addRobloxUser(
+        username,
+        sender
+    );
 
     res.json({
         success: true
@@ -173,9 +182,9 @@ app.post("/api/add", (req, res) => {
 
 });
 
-// ===============================
+// ========================================
 // TIKTOK
-// ===============================
+// ========================================
 
 let connection = null;
 
@@ -191,17 +200,23 @@ async function connectTikTok() {
         );
 
         return;
+    }
 
+    console.log(
+        "Conectando ao TikTok:",
+        TIKTOK_USERNAME
     );
-  
 
-   connection =
-    new TikTokLiveConnection(
+    connection = new TikTokLiveConnection(
         TIKTOK_USERNAME,
         {
             processInitialData: true
         }
     );
+
+    // ========================================
+    // CHAT
+    // ========================================
 
     connection.on(
         WebcastEvent.CHAT,
@@ -219,18 +234,15 @@ async function connectTikTok() {
                 `[CHAT] @${sender}: ${comment}`
             );
 
-            // Aceita:
-            // @Elias123
-            // Elias123
-            //
-            // Também aceita:
-            // roblox: @Elias123
-            // !roblox @Elias123
-
             let username = null;
 
+            // @Elias123
+            // Elias123
+
             const direct =
-                comment.match(/^@?([A-Za-z0-9_]{3,20})$/);
+                comment.match(
+                    /^@?([A-Za-z0-9_]{3,20})$/
+                );
 
             if (direct) {
 
@@ -238,15 +250,22 @@ async function connectTikTok() {
 
             } else {
 
+                // roblox: @Elias123
+                // roblox Elias123
+                // !roblox @Elias123
+                // user: Elias123
+                // username Elias123
+
                 const command =
                     comment.match(
                         /(?:roblox|user|username)\s*:?\s*@?([A-Za-z0-9_]{3,20})/i
                     );
 
                 if (command) {
-                    username = command[1];
-                }
 
+                    username = command[1];
+
+                }
             }
 
             if (username) {
@@ -261,12 +280,25 @@ async function connectTikTok() {
         }
     );
 
+    // ========================================
+    // CONECTADO
+    // ========================================
+
     connection.on(
         WebcastEvent.CONNECTED,
         state => {
 
             console.log(
-                "TikTok conectado!"
+                "================================"
+            );
+
+            console.log(
+                "TIKTOK CONECTADO!"
+            );
+
+            console.log(
+                "Usuário:",
+                TIKTOK_USERNAME
             );
 
             console.log(
@@ -274,8 +306,16 @@ async function connectTikTok() {
                 state.roomId
             );
 
+            console.log(
+                "================================"
+            );
+
         }
     );
+
+    // ========================================
+    // CONECTAR
+    // ========================================
 
     try {
 
@@ -289,6 +329,10 @@ async function connectTikTok() {
 
         console.error(error);
 
+        console.log(
+            "Tentando novamente em 15 segundos..."
+        );
+
         setTimeout(
             connectTikTok,
             15000
@@ -298,9 +342,9 @@ async function connectTikTok() {
 
 }
 
-// ===============================
+// ========================================
 // SERVIDOR
-// ===============================
+// ========================================
 
 app.listen(
     PORT,
