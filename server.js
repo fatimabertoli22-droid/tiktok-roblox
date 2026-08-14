@@ -218,100 +218,85 @@ async function connectTikTok() {
     // CHAT
     // ========================================
 
-    connection.on(
-        WebcastEvent.CHAT,
-        data => {
+   connection.on(
+    WebcastEvent.CHAT,
+    data => {
 
-            const comment =
-                String(data.comment || "").trim();
+        console.log("========== CHAT RECEBIDO ==========");
 
-            const sender =
-                data.user?.uniqueId ||
-                data.user?.nickname ||
-                "TikTok";
+        console.log(
+            "DATA:",
+            JSON.stringify(data, null, 2)
+        );
 
+        const comment = String(
+            data.comment ||
+            data.message ||
+            data.content ||
+            data.text ||
+            ""
+        ).trim();
+
+        const sender =
+            data.user?.uniqueId ||
+            data.user?.nickname ||
+            data.user?.unique_id ||
+            "TikTok";
+
+        console.log(
+            `[CHAT] @${sender}: ${comment}`
+        );
+
+        if (!comment) {
             console.log(
-                `[CHAT] @${sender}: ${comment}`
+                "⚠️ Mensagem do chat veio vazia."
             );
-
-            let username = null;
-
-            // @Elias123
-            // Elias123
-
-            const direct =
-                comment.match(
-                    /^@?([A-Za-z0-9_]{3,20})$/
-                );
-
-            if (direct) {
-
-                username = direct[1];
-
-            } else {
-
-                // roblox: @Elias123
-                // roblox Elias123
-                // !roblox @Elias123
-                // user: Elias123
-                // username Elias123
-
-                const command =
-                    comment.match(
-                        /(?:roblox|user|username)\s*:?\s*@?([A-Za-z0-9_]{3,20})/i
-                    );
-
-                if (command) {
-
-                    username = command[1];
-
-                }
-            }
-
-            if (username) {
-
-                addRobloxUser(
-                    username,
-                    sender
-                );
-
-            }
-
+            return;
         }
-    );
 
-    // ========================================
-    // CONECTADO
-    // ========================================
+        let username = null;
 
-    connection.on(
-        WebcastEvent.CONNECTED,
-        state => {
+        const direct = comment.match(
+            /^@?([A-Za-z0-9_]{3,20})$/
+        );
 
-            console.log(
-                "================================"
+        if (direct) {
+
+            username = direct[1];
+
+        } else {
+
+            const command = comment.match(
+                /(?:roblox|user|username)\s*:?\s*@?([A-Za-z0-9_]{3,20})/i
             );
 
-            console.log(
-                "TIKTOK CONECTADO!"
-            );
+            if (command) {
+                username = command[1];
+            }
+        }
+
+        if (username) {
 
             console.log(
-                "Usuário:",
-                TIKTOK_USERNAME
+                "🎮 Username Roblox encontrado:",
+                username
             );
 
-            console.log(
-                "Room ID:",
-                state.roomId
+            addRobloxUser(
+                username,
+                sender
             );
 
+        } else {
+
             console.log(
-                "================================"
+                "Nenhum username Roblox encontrado."
             );
 
         }
-    );
+
+    }
+);
 
     // ========================================
     // CONECTAR
