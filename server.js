@@ -192,12 +192,8 @@ async function connectTikTok() {
 
         return;
 
-    }
-
-    console.log(
-        "Conectando ao TikTok:",
-        TIKTOK_USERNAME
     );
+  
 
    connection =
     new TikTokLiveConnection(
