@@ -199,10 +199,13 @@ async function connectTikTok() {
         TIKTOK_USERNAME
     );
 
-    connection =
-        new TikTokLiveConnection(
-            TIKTOK_USERNAME
-        );
+   connection =
+    new TikTokLiveConnection(
+        TIKTOK_USERNAME,
+        {
+            processInitialData: true
+        }
+    );
 
     connection.on(
         WebcastEvent.CHAT,
