@@ -41,7 +41,6 @@ function addRobloxUser(robloxUsername, tiktokSender) {
         return false;
     }
 
-    // Verifica se já está na fila
     const alreadyExists = queue.some(
         player =>
             player.robloxUsername.toLowerCase() ===
@@ -71,6 +70,7 @@ function addRobloxUser(robloxUsername, tiktokSender) {
     console.log("Roblox:", robloxUsername);
     console.log("TikTok:", tiktokSender);
     console.log("ID:", item.id);
+    console.log("Fila:", queue.length);
     console.log("================================");
 
     return true;
@@ -92,7 +92,7 @@ app.get("/", (req, res) => {
 });
 
 // ==================================================
-// MIDDLEWARE DA API
+// MIDDLEWARE API KEY
 // ==================================================
 
 function checkApiKey(req, res, next) {
@@ -114,116 +114,186 @@ function checkApiKey(req, res, next) {
 }
 
 // ==================================================
-// ROBLOX PEGA A FILA
+// PEGAR FILA
+// ==================================================
+//
+// IMPORTANTE:
+// O ROBLOX ESTÁ CHAMANDO:
+//
+// /queue
+//
+// Então essa rota foi adicionada.
+//
+// Também mantemos:
+//
+// /api/queue
+//
+// ==================================================
+
+function sendQueue(req, res) {
+
+    console.log(
+        `📡 Roblox solicitou a fila. Jogadores: ${queue.length}`
+    );
+
+    res.json({
+        success: true,
+
+        // Formato usado pelo Roblox
+        queue: queue,
+
+        // Mantém compatibilidade com o sistema antigo
+        players: queue,
+
+        queueSize: queue.length
+    });
+
+}
+
+// ==================================================
+// ROTA /queue
+// ==================================================
+
+app.get(
+    "/queue",
+    checkApiKey,
+    sendQueue
+);
+
+// ==================================================
+// ROTA /api/queue
 // ==================================================
 
 app.get(
     "/api/queue",
     checkApiKey,
-    (req, res) => {
-
-        console.log(
-            `📡 Roblox solicitou a fila. Jogadores: ${queue.length}`
-        );
-
-        res.json({
-            success: true,
-            players: queue
-        });
-
-    }
+    sendQueue
 );
 
 // ==================================================
-// ROBLOX REMOVE JOGADOR
+// REMOVER JOGADOR
+// ==================================================
+
+function removePlayer(req, res) {
+
+    const id =
+        Number(req.body.id);
+
+    if (!id) {
+
+        return res.status(400).json({
+            success: false,
+            error: "ID inválido"
+        });
+
+    }
+
+    const oldLength =
+        queue.length;
+
+    queue = queue.filter(
+        player =>
+            player.id !== id
+    );
+
+    if (queue.length === oldLength) {
+
+        return res.json({
+            success: false,
+            message: "ID não encontrado"
+        });
+
+    }
+
+    console.log(
+        `🗑️ Jogador removido da fila: ${id}`
+    );
+
+    res.json({
+        success: true,
+        removedId: id,
+        queueSize: queue.length
+    });
+
+}
+
+// ==================================================
+// /api/remove
 // ==================================================
 
 app.post(
     "/api/remove",
     checkApiKey,
-    (req, res) => {
+    removePlayer
+);
 
-        const id =
-            Number(req.body.id);
+// ==================================================
+// /remove
+// ==================================================
 
-        if (!id) {
-
-            return res.status(400).json({
-                success: false,
-                error: "ID inválido"
-            });
-
-        }
-
-        const oldLength =
-            queue.length;
-
-        queue = queue.filter(
-            player =>
-                player.id !== id
-        );
-
-        if (queue.length === oldLength) {
-
-            return res.json({
-                success: false,
-                message: "ID não encontrado"
-            });
-
-        }
-
-        console.log(
-            `🗑️ Jogador removido da fila: ${id}`
-        );
-
-        res.json({
-            success: true
-        });
-
-    }
+app.post(
+    "/remove",
+    checkApiKey,
+    removePlayer
 );
 
 // ==================================================
 // ADICIONAR MANUALMENTE
 // ==================================================
 
-app.post(
-    "/api/add",
-    checkApiKey,
-    (req, res) => {
+function addPlayer(req, res) {
 
-        const username =
-            req.body.username;
+    const username =
+        req.body.username;
 
-        const sender =
-            req.body.sender || "Teste";
+    const sender =
+        req.body.sender || "Teste";
 
-        if (!username) {
+    if (!username) {
 
-            return res.status(400).json({
-                success: false,
-                error: "username obrigatório"
-            });
-
-        }
-
-        const added =
-            addRobloxUser(
-                username,
-                sender
-            );
-
-        res.json({
-            success: true,
-            added: added,
-            queueSize: queue.length
+        return res.status(400).json({
+            success: false,
+            error: "username obrigatório"
         });
 
     }
+
+    const added =
+        addRobloxUser(
+            username,
+            sender
+        );
+
+    res.json({
+        success: true,
+        added: added,
+        queueSize: queue.length
+    });
+
+}
+
+// ==================================================
+// /api/add
+// ==================================================
+
+app.post(
+    "/api/add",
+    checkApiKey,
+    addPlayer
 );
 
 // ==================================================
-// VER FILA PELO NAVEGADOR
+// /add
+// ==================================================
+
+app.post(
+    "/add",
+    checkApiKey,
+    addPlayer
+);
+
+// ==================================================
+// STATUS
 // ==================================================
 
 app.get(
@@ -234,7 +304,8 @@ app.get(
         res.json({
             success: true,
             queueSize: queue.length,
-            players: queue
+            players: queue,
+            queue: queue
         });
 
     }
@@ -261,9 +332,6 @@ function extractRobloxUsername(comment) {
 
     // ----------------------------------------------
     // Apenas username
-    // Exemplo:
-    // eliseucoco18
-    // @eliseucoco18
     // ----------------------------------------------
 
     const direct =
@@ -277,9 +345,6 @@ function extractRobloxUsername(comment) {
 
     // ----------------------------------------------
     // Comando roblox
-    // Exemplo:
-    // roblox eliseucoco18
-    // roblox: eliseucoco18
     // ----------------------------------------------
 
     const command =
@@ -487,15 +552,19 @@ app.listen(
         );
 
         console.log(
-            "🎮 API da fila: /api/queue"
+            "🎮 API da fila: /queue"
         );
 
         console.log(
-            "🗑️ API remover: /api/remove"
+            "🎮 API antiga: /api/queue"
         );
 
         console.log(
-            "➕ API adicionar: /api/add"
+            "🗑️ API remover: /remove"
+        );
+
+        console.log(
+            "➕ API adicionar: /add"
         );
 
         console.log(
