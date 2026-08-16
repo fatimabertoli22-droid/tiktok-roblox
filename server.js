@@ -1,3 +1,4 @@
+```javascript
 const express = require("express");
 const {
     TikTokLiveConnection,
@@ -9,6 +10,10 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
+// ==================================================
+// CONFIGURAÇÕES
+// ==================================================
+
 const TIKTOK_USERNAME =
     process.env.TIKTOK_USERNAME || "subarunatsuki2.3";
 
@@ -16,25 +21,25 @@ const API_KEY =
     process.env.API_KEY || "RobloxTikTok_847291";
 
 // ==================================================
-// FILA
+// FILA ROBLOX
 // ==================================================
 
 let queue = [];
 let nextId = 1;
 
 // ==================================================
-// TOP PRESENTES
+// TOP DE PRESENTES
 // ==================================================
 
 let topGifts = {};
 
-function addGift(username, nickname, giftName, giftCount) {
+function addGift(username, nickname, giftName, diamonds) {
 
     username = String(username || "TikTok");
     nickname = String(nickname || username);
     giftName = String(giftName || "Presente");
 
-    const count = Number(giftCount) || 1;
+    diamonds = Number(diamonds) || 0;
 
     if (!topGifts[username]) {
 
@@ -42,17 +47,27 @@ function addGift(username, nickname, giftName, giftCount) {
             username: username,
             nickname: nickname,
             gifts: 0,
-            lastGift: giftName
+            diamonds: 0
         };
 
     }
 
-    topGifts[username].gifts += count;
-    topGifts[username].lastGift = giftName;
+    topGifts[username].gifts += 1;
+    topGifts[username].diamonds += diamonds;
+
+    console.log("================================");
+    console.log("🎁 NOVO PRESENTE");
+    console.log("👤 TikTok:", username);
+    console.log("📛 Nome:", nickname);
+    console.log("🎁 Presente:", giftName);
+    console.log("💎 Diamonds:", diamonds);
+    console.log("🎁 Total presentes:", topGifts[username].gifts);
+    console.log("================================");
+
 }
 
 // ==================================================
-// ADICIONAR JOGADOR
+// ADICIONAR USUÁRIO NA FILA
 // ==================================================
 
 function addRobloxUser(robloxUsername, tiktokSender) {
@@ -65,12 +80,13 @@ function addRobloxUser(robloxUsername, tiktokSender) {
         return false;
     }
 
-    const exists = queue.some(player =>
-        player.robloxUsername.toLowerCase() ===
-        robloxUsername.toLowerCase()
+    const alreadyExists = queue.some(
+        player =>
+            player.robloxUsername.toLowerCase() ===
+            robloxUsername.toLowerCase()
     );
 
-    if (exists) {
+    if (alreadyExists) {
 
         console.log(
             `Ignorado: ${robloxUsername} já está na fila`
@@ -99,38 +115,7 @@ function addRobloxUser(robloxUsername, tiktokSender) {
 }
 
 // ==================================================
-// EXTRAIR USERNAME ROBLOX
-// ==================================================
-
-function extractRobloxUsername(comment) {
-
-    if (!comment) {
-        return null;
-    }
-
-    comment = String(comment).trim();
-
-    const direct =
-        comment.match(/^@?([A-Za-z0-9_]{3,20})$/);
-
-    if (direct) {
-        return direct[1];
-    }
-
-    const command =
-        comment.match(
-            /(?:roblox|user|username)\s*:?\s*@?([A-Za-z0-9_]{3,20})/i
-        );
-
-    if (command) {
-        return command[1];
-    }
-
-    return null;
-}
-
-// ==================================================
-// TESTE
+// PÁGINA PRINCIPAL
 // ==================================================
 
 app.get("/", (req, res) => {
@@ -139,7 +124,8 @@ app.get("/", (req, res) => {
         online: true,
         service: "TikTok → Roblox",
         queueSize: queue.length,
-        topGifts: Object.values(topGifts)
+        topSize: Object.keys(topGifts).length,
+        tiktok: TIKTOK_USERNAME
     });
 
 });
@@ -167,13 +153,17 @@ function checkApiKey(req, res, next) {
 }
 
 // ==================================================
-// PEGAR FILA
+// FILA
 // ==================================================
 
 app.get(
     "/api/queue",
     checkApiKey,
     (req, res) => {
+
+        console.log(
+            `📡 Roblox solicitou a fila. Jogadores: ${queue.length}`
+        );
 
         res.json({
             success: true,
@@ -184,7 +174,7 @@ app.get(
 );
 
 // ==================================================
-// REMOVER DA FILA
+// REMOVER DA FILA POR ID
 // ==================================================
 
 app.post(
@@ -219,7 +209,7 @@ app.post(
         }
 
         console.log(
-            `🗑️ Jogador removido: ID ${id}`
+            `🗑️ Jogador removido da fila: ${id}`
         );
 
         res.json({
@@ -266,7 +256,7 @@ app.post(
 );
 
 // ==================================================
-// TOP PRESENTES
+// TOP 3
 // ==================================================
 
 app.get(
@@ -274,18 +264,100 @@ app.get(
     checkApiKey,
     (req, res) => {
 
-        const ranking =
-            Object.values(topGifts)
-                .sort((a, b) => b.gifts - a.gifts)
-                .slice(0, 10);
+        const top = Object.values(topGifts)
+            .sort((a, b) => {
+
+                if (b.diamonds !== a.diamonds) {
+                    return b.diamonds - a.diamonds;
+                }
+
+                return b.gifts - a.gifts;
+
+            })
+            .slice(0, 3)
+            .map((player, index) => ({
+
+                position: index + 1,
+
+                username: player.username,
+
+                nickname: player.nickname,
+
+                gifts: player.gifts,
+
+                diamonds: player.diamonds
+
+            }));
 
         res.json({
             success: true,
-            top: ranking
+            top: top
         });
 
     }
 );
+
+// ==================================================
+// STATUS
+// ==================================================
+
+app.get(
+    "/api/status",
+    checkApiKey,
+    (req, res) => {
+
+        res.json({
+
+            success: true,
+
+            queueSize: queue.length,
+
+            players: queue,
+
+            top: Object.values(topGifts)
+                .sort(
+                    (a, b) =>
+                        b.diamonds - a.diamonds
+                )
+                .slice(0, 3)
+
+        });
+
+    }
+);
+
+// ==================================================
+// EXTRAIR USERNAME ROBLOX
+// ==================================================
+
+function extractRobloxUsername(comment) {
+
+    if (!comment) {
+        return null;
+    }
+
+    comment = String(comment).trim();
+
+    const direct =
+        comment.match(
+            /^@?([A-Za-z0-9_]{3,20})$/
+        );
+
+    if (direct) {
+        return direct[1];
+    }
+
+    const command =
+        comment.match(
+            /(?:roblox|user|username)\s*:?\s*@?([A-Za-z0-9_]{3,20})/i
+        );
+
+    if (command) {
+        return command[1];
+    }
+
+    return null;
+}
 
 // ==================================================
 // TIKTOK
@@ -348,12 +420,14 @@ async function connectTikTok() {
                     );
 
                     const username =
-                        extractRobloxUsername(comment);
+                        extractRobloxUsername(
+                            comment
+                        );
 
                     if (username) {
 
                         console.log(
-                            "🎮 Roblox encontrado:",
+                            "🎮 Username Roblox encontrado:",
                             username
                         );
 
@@ -367,4 +441,173 @@ async function connectTikTok() {
                 } catch (error) {
 
                     console.error(
-                        "❌ Erro
+                        "❌ Erro no CHAT:",
+                        error
+                    );
+
+                }
+
+            }
+        );
+
+        // ==================================================
+        // PRESENTES
+        // ==================================================
+
+        connection.on(
+            WebcastEvent.GIFT,
+            data => {
+
+                try {
+
+                    const user =
+                        data.user ||
+                        {};
+
+                    const username =
+                        user.uniqueId ||
+                        user.unique_id ||
+                        user.nickname ||
+                        "TikTok";
+
+                    const nickname =
+                        user.nickname ||
+                        username;
+
+                    const gift =
+                        data.giftDetails ||
+                        data.gift ||
+                        {};
+
+                    const giftName =
+                        gift.name ||
+                        data.giftName ||
+                        "Presente";
+
+                    const diamondCount =
+                        Number(
+                            gift.diamondCount ||
+                            gift.diamond_count ||
+                            data.diamondCount ||
+                            0
+                        );
+
+                    const repeatCount =
+                        Number(
+                            data.repeatCount ||
+                            data.repeat_count ||
+                            1
+                        );
+
+                    const totalDiamonds =
+                        diamondCount *
+                        repeatCount;
+
+                    addGift(
+                        username,
+                        nickname,
+                        giftName,
+                        totalDiamonds
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "❌ Erro processando presente:",
+                        error
+                    );
+
+                }
+
+            }
+        );
+
+        // ==================================================
+        // CONECTAR
+        // ==================================================
+
+        await connection.connect();
+
+        console.log(
+            "✅ TikTok conectado com sucesso!"
+        );
+
+        console.log("================================");
+
+    } catch (error) {
+
+        console.error(
+            "❌ Erro ao conectar no TikTok:"
+        );
+
+        console.error(error);
+
+        console.log(
+            "🔄 Tentando novamente em 15 segundos..."
+        );
+
+        setTimeout(
+            () => {
+
+                connecting = false;
+                connectTikTok();
+
+            },
+            15000
+        );
+
+        return;
+    }
+
+    connecting = false;
+}
+
+// ==================================================
+// SERVIDOR
+// ==================================================
+
+app.listen(
+    PORT,
+    () => {
+
+        console.log(
+            "=================================================="
+        );
+
+        console.log(
+            "🚀 SERVIDOR TIKTOK → ROBLOX ONLINE"
+        );
+
+        console.log(
+            `🌐 Porta: ${PORT}`
+        );
+
+        console.log(
+            `📱 TikTok: ${TIKTOK_USERNAME}`
+        );
+
+        console.log(
+            "🎮 API: /api/queue"
+        );
+
+        console.log(
+            "🗑️ Remover: /api/remove"
+        );
+
+        console.log(
+            "🏆 TOP: /api/top"
+        );
+
+        console.log(
+            "🎁 Presentes: ATIVADO"
+        );
+
+        console.log(
+            "=================================================="
+        );
+
+        connectTikTok();
+
+    }
+);
+```
