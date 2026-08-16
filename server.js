@@ -5,14 +5,9 @@ const {
 } = require("tiktok-live-connector");
 
 const app = express();
-
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
-
-// ==================================================
-// CONFIGURAÇÕES
-// ==================================================
 
 const TIKTOK_USERNAME =
     process.env.TIKTOK_USERNAME || "subarunatsuki2.3";
@@ -28,7 +23,36 @@ let queue = [];
 let nextId = 1;
 
 // ==================================================
-// ADICIONAR USUÁRIO
+// TOP PRESENTES
+// ==================================================
+
+let topGifts = {};
+
+function addGift(username, nickname, giftName, giftCount) {
+
+    username = String(username || "TikTok");
+    nickname = String(nickname || username);
+    giftName = String(giftName || "Presente");
+
+    const count = Number(giftCount) || 1;
+
+    if (!topGifts[username]) {
+
+        topGifts[username] = {
+            username: username,
+            nickname: nickname,
+            gifts: 0,
+            lastGift: giftName
+        };
+
+    }
+
+    topGifts[username].gifts += count;
+    topGifts[username].lastGift = giftName;
+}
+
+// ==================================================
+// ADICIONAR JOGADOR
 // ==================================================
 
 function addRobloxUser(robloxUsername, tiktokSender) {
@@ -41,13 +65,12 @@ function addRobloxUser(robloxUsername, tiktokSender) {
         return false;
     }
 
-    const alreadyExists = queue.some(
-        player =>
-            player.robloxUsername.toLowerCase() ===
-            robloxUsername.toLowerCase()
+    const exists = queue.some(player =>
+        player.robloxUsername.toLowerCase() ===
+        robloxUsername.toLowerCase()
     );
 
-    if (alreadyExists) {
+    if (exists) {
 
         console.log(
             `Ignorado: ${robloxUsername} já está na fila`
@@ -70,14 +93,44 @@ function addRobloxUser(robloxUsername, tiktokSender) {
     console.log("Roblox:", robloxUsername);
     console.log("TikTok:", tiktokSender);
     console.log("ID:", item.id);
-    console.log("Fila:", queue.length);
     console.log("================================");
 
     return true;
 }
 
 // ==================================================
-// TESTE DA API
+// EXTRAIR USERNAME ROBLOX
+// ==================================================
+
+function extractRobloxUsername(comment) {
+
+    if (!comment) {
+        return null;
+    }
+
+    comment = String(comment).trim();
+
+    const direct =
+        comment.match(/^@?([A-Za-z0-9_]{3,20})$/);
+
+    if (direct) {
+        return direct[1];
+    }
+
+    const command =
+        comment.match(
+            /(?:roblox|user|username)\s*:?\s*@?([A-Za-z0-9_]{3,20})/i
+        );
+
+    if (command) {
+        return command[1];
+    }
+
+    return null;
+}
+
+// ==================================================
+// TESTE
 // ==================================================
 
 app.get("/", (req, res) => {
@@ -86,13 +139,13 @@ app.get("/", (req, res) => {
         online: true,
         service: "TikTok → Roblox",
         queueSize: queue.length,
-        tiktok: TIKTOK_USERNAME
+        topGifts: Object.values(topGifts)
     });
 
 });
 
 // ==================================================
-// MIDDLEWARE API KEY
+// API KEY
 // ==================================================
 
 function checkApiKey(req, res, next) {
@@ -116,196 +169,119 @@ function checkApiKey(req, res, next) {
 // ==================================================
 // PEGAR FILA
 // ==================================================
-//
-// IMPORTANTE:
-// O ROBLOX ESTÁ CHAMANDO:
-//
-// /queue
-//
-// Então essa rota foi adicionada.
-//
-// Também mantemos:
-//
-// /api/queue
-//
-// ==================================================
-
-function sendQueue(req, res) {
-
-    console.log(
-        `📡 Roblox solicitou a fila. Jogadores: ${queue.length}`
-    );
-
-    res.json({
-        success: true,
-
-        // Formato usado pelo Roblox
-        queue: queue,
-
-        // Mantém compatibilidade com o sistema antigo
-        players: queue,
-
-        queueSize: queue.length
-    });
-
-}
-
-// ==================================================
-// ROTA /queue
-// ==================================================
-
-app.get(
-    "/queue",
-    checkApiKey,
-    sendQueue
-);
-
-// ==================================================
-// ROTA /api/queue
-// ==================================================
 
 app.get(
     "/api/queue",
     checkApiKey,
-    sendQueue
+    (req, res) => {
+
+        res.json({
+            success: true,
+            players: queue
+        });
+
+    }
 );
 
 // ==================================================
-// REMOVER JOGADOR
-// ==================================================
-
-function removePlayer(req, res) {
-
-    const id =
-        Number(req.body.id);
-
-    if (!id) {
-
-        return res.status(400).json({
-            success: false,
-            error: "ID inválido"
-        });
-
-    }
-
-    const oldLength =
-        queue.length;
-
-    queue = queue.filter(
-        player =>
-            player.id !== id
-    );
-
-    if (queue.length === oldLength) {
-
-        return res.json({
-            success: false,
-            message: "ID não encontrado"
-        });
-
-    }
-
-    console.log(
-        `🗑️ Jogador removido da fila: ${id}`
-    );
-
-    res.json({
-        success: true,
-        removedId: id,
-        queueSize: queue.length
-    });
-
-}
-
-// ==================================================
-// /api/remove
+// REMOVER DA FILA
 // ==================================================
 
 app.post(
     "/api/remove",
     checkApiKey,
-    removePlayer
-);
+    (req, res) => {
 
-// ==================================================
-// /remove
-// ==================================================
+        const id = Number(req.body.id);
 
-app.post(
-    "/remove",
-    checkApiKey,
-    removePlayer
+        if (!id) {
+
+            return res.status(400).json({
+                success: false,
+                error: "ID inválido"
+            });
+
+        }
+
+        const oldLength = queue.length;
+
+        queue = queue.filter(
+            player => player.id !== id
+        );
+
+        if (queue.length === oldLength) {
+
+            return res.json({
+                success: false,
+                message: "ID não encontrado"
+            });
+
+        }
+
+        console.log(
+            `🗑️ Jogador removido: ID ${id}`
+        );
+
+        res.json({
+            success: true
+        });
+
+    }
 );
 
 // ==================================================
 // ADICIONAR MANUALMENTE
 // ==================================================
 
-function addPlayer(req, res) {
-
-    const username =
-        req.body.username;
-
-    const sender =
-        req.body.sender || "Teste";
-
-    if (!username) {
-
-        return res.status(400).json({
-            success: false,
-            error: "username obrigatório"
-        });
-
-    }
-
-    const added =
-        addRobloxUser(
-            username,
-            sender
-        );
-
-    res.json({
-        success: true,
-        added: added,
-        queueSize: queue.length
-    });
-
-}
-
-// ==================================================
-// /api/add
-// ==================================================
-
 app.post(
     "/api/add",
     checkApiKey,
-    addPlayer
-);
-
-// ==================================================
-// /add
-// ==================================================
-
-app.post(
-    "/add",
-    checkApiKey,
-    addPlayer
-);
-
-// ==================================================
-// STATUS
-// ==================================================
-
-app.get(
-    "/api/status",
-    checkApiKey,
     (req, res) => {
+
+        const username = req.body.username;
+        const sender = req.body.sender || "Teste";
+
+        if (!username) {
+
+            return res.status(400).json({
+                success: false,
+                error: "username obrigatório"
+            });
+
+        }
+
+        const added =
+            addRobloxUser(
+                username,
+                sender
+            );
 
         res.json({
             success: true,
-            queueSize: queue.length,
-            players: queue,
-            queue: queue
+            added: added,
+            queueSize: queue.length
+        });
+
+    }
+);
+
+// ==================================================
+// TOP PRESENTES
+// ==================================================
+
+app.get(
+    "/api/top",
+    checkApiKey,
+    (req, res) => {
+
+        const ranking =
+            Object.values(topGifts)
+                .sort((a, b) => b.gifts - a.gifts)
+                .slice(0, 10);
+
+        res.json({
+            success: true,
+            top: ranking
         });
 
     }
@@ -318,51 +294,6 @@ app.get(
 let connection = null;
 let connecting = false;
 
-// ==================================================
-// EXTRAIR USERNAME ROBLOX
-// ==================================================
-
-function extractRobloxUsername(comment) {
-
-    if (!comment) {
-        return null;
-    }
-
-    comment = String(comment).trim();
-
-    // ----------------------------------------------
-    // Apenas username
-    // ----------------------------------------------
-
-    const direct =
-        comment.match(
-            /^@?([A-Za-z0-9_]{3,20})$/
-        );
-
-    if (direct) {
-        return direct[1];
-    }
-
-    // ----------------------------------------------
-    // Comando roblox
-    // ----------------------------------------------
-
-    const command =
-        comment.match(
-            /(?:roblox|user|username)\s*:?\s*@?([A-Za-z0-9_]{3,20})/i
-        );
-
-    if (command) {
-        return command[1];
-    }
-
-    return null;
-}
-
-// ==================================================
-// CONECTAR TIKTOK
-// ==================================================
-
 async function connectTikTok() {
 
     if (connecting) {
@@ -371,25 +302,7 @@ async function connectTikTok() {
 
     connecting = true;
 
-    if (
-        !TIKTOK_USERNAME ||
-        TIKTOK_USERNAME ===
-        "COLOQUE_SEU_TIKTOK_AQUI"
-    ) {
-
-        console.log(
-            "⚠️ TikTok não configurado."
-        );
-
-        connecting = false;
-
-        return;
-    }
-
-    console.log(
-        "================================"
-    );
-
+    console.log("================================");
     console.log(
         "📱 Conectando ao TikTok:",
         TIKTOK_USERNAME
@@ -415,10 +328,6 @@ async function connectTikTok() {
 
                 try {
 
-                    console.log(
-                        "========== CHAT RECEBIDO =========="
-                    );
-
                     const comment =
                         String(
                             data.comment ||
@@ -438,24 +347,13 @@ async function connectTikTok() {
                         `[CHAT] @${sender}: ${comment}`
                     );
 
-                    if (!comment) {
-
-                        console.log(
-                            "⚠️ Mensagem vazia."
-                        );
-
-                        return;
-                    }
-
                     const username =
-                        extractRobloxUsername(
-                            comment
-                        );
+                        extractRobloxUsername(comment);
 
                     if (username) {
 
                         console.log(
-                            "🎮 Username Roblox encontrado:",
+                            "🎮 Roblox encontrado:",
                             username
                         );
 
@@ -464,114 +362,9 @@ async function connectTikTok() {
                             sender
                         );
 
-                    } else {
-
-                        console.log(
-                            "Nenhum username Roblox encontrado."
-                        );
-
                     }
 
                 } catch (error) {
 
                     console.error(
-                        "❌ Erro processando mensagem do TikTok:"
-                    );
-
-                    console.error(error);
-
-                }
-
-            }
-        );
-
-        // ==================================================
-        // CONECTAR
-        // ==================================================
-
-        await connection.connect();
-
-        console.log(
-            "✅ TikTok conectado com sucesso!"
-        );
-
-        console.log(
-            "================================"
-        );
-
-    } catch (error) {
-
-        console.error(
-            "❌ Erro ao conectar no TikTok:"
-        );
-
-        console.error(error);
-
-        console.log(
-            "🔄 Tentando novamente em 15 segundos..."
-        );
-
-        setTimeout(
-            () => {
-
-                connecting = false;
-                connectTikTok();
-
-            },
-            15000
-        );
-
-        return;
-    }
-
-    connecting = false;
-}
-
-// ==================================================
-// INICIAR SERVIDOR
-// ==================================================
-
-app.listen(
-    PORT,
-    () => {
-
-        console.log(
-            "=================================================="
-        );
-
-        console.log(
-            "🚀 SERVIDOR TIKTOK → ROBLOX ONLINE"
-        );
-
-        console.log(
-            `🌐 Porta: ${PORT}`
-        );
-
-        console.log(
-            `📱 TikTok: ${TIKTOK_USERNAME}`
-        );
-
-        console.log(
-            "🎮 API da fila: /queue"
-        );
-
-        console.log(
-            "🎮 API antiga: /api/queue"
-        );
-
-        console.log(
-            "🗑️ API remover: /remove"
-        );
-
-        console.log(
-            "➕ API adicionar: /add"
-        );
-
-        console.log(
-            "=================================================="
-        );
-
-        connectTikTok();
-
-    }
-);
+                        "❌ Erro
