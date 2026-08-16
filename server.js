@@ -1,4 +1,4 @@
-```javascript
+
 const express = require("express");
 const {
     TikTokLiveConnection,
